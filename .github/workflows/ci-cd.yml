@@ -1,0 +1,87 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Lint, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lambda-bundle
+          path: dist/handler.js
+
+  integration:
+    name: Testes de integração
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oficina
+          POSTGRES_PASSWORD: oficina123
+          POSTGRES_DB: oficina_mecanica
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oficina -d oficina_mecanica"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      JWT_SECRET: troque-este-jwt-secret-com-mais-de-16-caracteres
+      JWT_EXPIRES_IN: 1h
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina123
+      POSTGRES_DB: oficina_mecanica
+      POSTGRES_SSL: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Seed Postgres
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=oficina123 psql -h localhost -U oficina -d oficina_mecanica -f docker/init.sql
+      - run: npm run test:integration
+
+  terraform:
+    name: Terraform fmt e validate
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lambda-bundle
+          path: ../dist
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate

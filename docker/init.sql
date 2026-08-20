@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS cliente (
+  id UUID PRIMARY KEY,
+  documento VARCHAR(11) NOT NULL UNIQUE,
+  deleted_at TIMESTAMPTZ NULL
+);
+
+INSERT INTO cliente (id, documento, deleted_at)
+VALUES ('550e8400-e29b-41d4-a716-446655440000', '52998224725', NULL)
+ON CONFLICT (documento) DO NOTHING;
