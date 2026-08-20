@@ -1,18 +1,5 @@
-import { isValidCpf, normalizeCpf } from './cpf';
-
-export type AuthRole = 'cliente';
-
-export type ClienteRecord = {
-  id: string;
-  documento: string;
-  deletedAt: Date | null;
-};
-
-export type AuthTokenPayload = {
-  sub: string;
-  cpf: string;
-  role: AuthRole;
-};
+import type { AuthTokenPayload, ClienteRecord } from '../domain/auth';
+import { isValidCpf, normalizeCpf } from '../domain/cpf';
 
 export type AuthSuccess = {
   ok: true;

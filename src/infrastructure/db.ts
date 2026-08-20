@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import type { ClienteRecord } from './authenticate-cpf';
+import type { ClienteRecord } from '../domain/auth';
 
 let pool: Pool | undefined;
 
@@ -45,4 +45,11 @@ export async function findClienteByCpf(cpf: string): Promise<ClienteRecord | nul
     documento: row.documento,
     deletedAt: row.deleted_at,
   };
+}
+
+export async function resetPoolForTests(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = undefined;
+  }
 }

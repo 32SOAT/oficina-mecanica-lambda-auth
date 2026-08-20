@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import type { AuthTokenPayload } from './authenticate-cpf';
+import type { AuthTokenPayload } from '../domain/auth';
 
 export function signToken(payload: AuthTokenPayload): string {
   const secret = process.env.JWT_SECRET;

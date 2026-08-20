@@ -1,13 +1,16 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from './handler';
-import { authenticateCpf } from './authenticate-cpf';
+import { authenticateCpf } from './application/authenticate-cpf';
 
-jest.mock('./authenticate-cpf');
-jest.mock('./db', () => ({
+jest.mock('./application/authenticate-cpf');
+jest.mock('./infrastructure/db', () => ({
   findClienteByCpf: jest.fn(),
 }));
-jest.mock('./jwt', () => ({
+jest.mock('./infrastructure/jwt', () => ({
   signToken: jest.fn(),
+}));
+jest.mock('./infrastructure/logger', () => ({
+  logStructured: jest.fn(),
 }));
 
 const mockedAuthenticate = authenticateCpf as jest.MockedFunction<typeof authenticateCpf>;
@@ -75,5 +78,16 @@ describe('handler', () => {
     const response = await handler(postEvent({ cpf: '529.982.247-25' }));
 
     expect(response.statusCode).toBe(401);
+  });
+
+  it('devolve 503 quando autenticação lança erro', async () => {
+    mockedAuthenticate.mockRejectedValue(new Error('connection refused'));
+
+    const response = await handler(postEvent({ cpf: '529.982.247-25' }));
+
+    expect(response.statusCode).toBe(503);
+    expect(JSON.parse(response.body ?? '')).toEqual({
+      message: 'Serviço temporariamente indisponível.',
+    });
   });
 });

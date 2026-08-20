@@ -2,11 +2,10 @@
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/*.spec.ts'],
-  testPathIgnorePatterns: ['\\.integration\\.spec\\.ts$'],
+  testMatch: ['**/*.integration.spec.ts'],
+  setupFiles: ['<rootDir>/src/integration/setup.ts'],
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: { types: ['node', 'jest'] } }],
   },
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/integration/**'],
-  coverageDirectory: 'coverage',
+  testTimeout: 60000,
 };

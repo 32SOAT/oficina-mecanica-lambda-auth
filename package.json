@@ -7,6 +7,7 @@
   "scripts": {
     "build": "esbuild src/handler.ts --bundle --platform=node --target=node22 --outfile=dist/handler.js --sourcemap",
     "test": "jest --coverage",
+    "test:integration": "jest --config jest.integration.cjs",
     "lint": "tsc --noEmit",
     "dev:local": "tsx scripts/local-server.ts",
     "docker:up": "docker compose up --build -d",
