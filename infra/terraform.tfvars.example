@@ -1,0 +1,19 @@
+aws_region  = "us-east-1"
+# No AWS Academy, cole o ARN do LabRole. Em conta pessoal, deixe vazio.
+# lambda_role_arn = "arn:aws:iam::ACCOUNT:role/LabRole"
+
+jwt_secret     = "troque-este-jwt-secret-com-mais-de-16-caracteres"
+jwt_expires_in = "1h"
+
+postgres_host     = "COLE_O_HOST_DO_RDS"
+postgres_user     = "oficina"
+postgres_password = "troque-esta-senha"
+postgres_db       = "oficina_mecanica"
+postgres_ssl      = "1"
+
+# Subnets privadas do cluster (terraform output da API) para a Lambda alcançar o RDS.
+# subnet_ids         = ["subnet-aaa", "subnet-bbb"]
+# security_group_ids = ["sg-aaa"]
+
+# Hostname do NLB do Nest (kubectl get svc). Sem barra no final. HTTP, porta 80.
+# nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"

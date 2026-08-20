@@ -1,1 +1,112 @@
-# oficina-mecanica-lambda-auth
+# Autenticação do cliente via CPF (Lambda + API Gateway)
+
+Function serverless da Fase 3: valida CPF, consulta o cliente no Postgres e devolve um JWT. **Login de admin (e-mail/senha) continua na API Nest.**
+
+API Nest (roles, rotas, JWT): [oficina-mecanica-api](https://github.com/32SOAT/oficina-mecanica-api) — em especial [docs/architecture/auth.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/architecture/auth.md).
+
+O mesmo API Gateway também faz **proxy HTTP** das rotas `/api/...` para o Nest (NLB do EKS), quando `nest_api_url` está preenchido.
+
+## Tecnologias
+
+Node 22 · TypeScript · `jsonwebtoken` · `pg` · API Gateway HTTP API · Terraform · GitHub Actions
+
+## Fluxo
+
+```mermaid
+sequenceDiagram
+  participant C as Cliente
+  participant GW as API Gateway
+  participant L as Lambda
+  participant Nest as Nest no EKS
+  participant DB as RDS Postgres
+
+  C->>GW: POST /auth/cpf { "cpf": "529.982.247-25" }
+  GW->>L: proxy
+  L->>DB: SELECT cliente WHERE documento = cpf
+  L-->>C: 200 { "token": "<jwt>" }
+
+  C->>GW: GET /api/v1/ordens/{id}/status Authorization Bearer
+  GW->>Nest: HTTP proxy
+  Nest-->>C: status da OS
+```
+
+JWT (`role: cliente`):
+
+```json
+{ "sub": "<id-do-cliente>", "cpf": "52998224725", "role": "cliente" }
+```
+
+Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (ativo). O Nest recusa JWT de cliente nas rotas de oficina (`RolesGuard`; default = admin) e aceita nas de status/aprovar/reprovar.
+
+| Rota no Gateway | Destino |
+| --- | --- |
+| `POST /auth/cpf` | Lambda |
+| `ANY /{proxy+}` (ex.: `/api/v1/...`, `/api`) | Nest, se `nest_api_url` estiver setado |
+| `POST /api/v1/auth/login` | Nest (admin) |
+
+## Contrato HTTP
+
+`POST /auth/cpf`
+
+```json
+{ "cpf": "529.982.247-25" }
+```
+
+- `200` `{ "token": "..." }`
+- `400` CPF ausente ou inválido
+- `401` cliente não encontrado ou inativo
+
+## Como rodar os testes
+
+```bash
+npm ci
+npm test
+npm run build
+```
+
+O bundle fica em `dist/handler.js` (handler `handler.handler`).
+
+## Deploy (Terraform)
+
+Ordem no Academy: **EKS + RDS + Nest no ar primeiro**, depois esta Lambda. Sem o hostname do NLB o Gateway só autentica CPF. Passo a passo do lab: [academy-passo-a-passo.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/deployment/academy-passo-a-passo.md) (seção 6).
+
+1. `npm run build`
+2. `cd infra && cp terraform.tfvars.example terraform.tfvars`
+3. Preencha host do RDS, senha, `jwt_secret` (**igual** ao da API).
+4. **AWS Academy:** `lambda_role_arn` = ARN do `LabRole`. Sem isso o `CreateRole` falha.
+5. Para a Lambda alcançar o RDS, informe `subnet_ids` (privadas) e `security_group_ids`.
+6. Com o Nest no ar:
+
+```powershell
+kubectl -n oficina-mecanica get svc
+```
+
+Cole o hostname do NLB em `nest_api_url` (HTTP, **sem** barra no final):
+
+```hcl
+nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
+```
+
+7. `terraform init && terraform apply`
+
+A URL sai em `terraform output api_endpoint`. `nest_proxy_enabled` deve ser `true`.
+
+Teste:
+
+```bash
+# CPF
+curl -s -X POST "$ENDPOINT/auth/cpf" \
+  -H "content-type: application/json" \
+  -d '{"cpf":"529.982.247-25"}'
+
+# Health via proxy
+curl -s "$ENDPOINT/api/v1/health"
+
+# Status da OS (cole o token do passo 1)
+curl -s "$ENDPOINT/api/v1/ordens/UUID-DA-OS/status" \
+  -H "Authorization: Bearer COLE_O_TOKEN"
+```
+
+Se o health do Nest funciona no NLB direto mas **timeout** no Gateway, o NLB provavelmente está restrito por CIDR. Em `infra/.env` da API, `TF_VAR_api_allowed_cidr_blocks` precisa permitir `0.0.0.0/0` para o Gateway alcançar.
+
+Antes de `terraform destroy` da API (EKS/RDS), destrua **este** Terraform (Gateway + Lambda).
