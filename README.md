@@ -56,6 +56,36 @@ Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (a
 - `400` CPF ausente ou inválido
 - `401` cliente não encontrado ou inativo
 
+## Como rodar localmente
+
+### Opção 1 — Docker (Postgres + servidor HTTP)
+
+Sobe Postgres com um cliente de teste e expõe `POST /auth/cpf` na porta 3000:
+
+```bash
+npm run docker:up
+curl -s -X POST http://localhost:3000/auth/cpf \
+  -H "content-type: application/json" \
+  -d '{"cpf":"529.982.247-25"}'
+```
+
+Para parar e remover volumes:
+
+```bash
+npm run docker:down
+```
+
+Logs do serviço de auth: `npm run docker:logs`
+
+### Opção 2 — Node no host (Postgres via Docker)
+
+1. Suba só o banco: `docker compose up -d postgres` (Postgres na porta **5433** do host)
+2. Copie `.env.example` para `.env`
+3. Inicie o servidor local: `npm run dev:local`
+4. Teste com o mesmo `curl` acima em `http://localhost:3000/auth/cpf`
+
+O cliente seed usa CPF `529.982.247-25` (`52998224725` no banco).
+
 ## Como rodar os testes
 
 ```bash

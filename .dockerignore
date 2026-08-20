@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/coverage
+.git
+.github
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+infra/terraform.tfvars
+.env
+*.zip
+README.md
