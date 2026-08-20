@@ -6,6 +6,5 @@ coverage/
 .terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
 crash.log
 .DS_Store
