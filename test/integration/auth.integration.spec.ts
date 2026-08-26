@@ -1,8 +1,8 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
 import { Pool } from 'pg';
-import { handler } from '../handler';
-import { resetPoolForTests } from '../infrastructure/db';
+import { handler } from '../../src/handler';
+import { resetPoolForTests } from '../../src/infrastructure/db';
 
 const validCpf = '529.982.247-25';
 
