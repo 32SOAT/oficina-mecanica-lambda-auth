@@ -30,8 +30,6 @@ sequenceDiagram
   Nest-->>C: status da OS
 ```
 
-
-
 JWT (`role: cliente`):
 
 ```json
@@ -143,7 +141,7 @@ Cole o hostname do NLB em `nest_api_url` (HTTP, **sem** barra no final):
 nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
 ```
 
-1. `terraform init && terraform apply`
+7. `terraform init && terraform apply`
 
 > O arquivo `infra/.terraform.lock.hcl` fica versionado no Git para garantir as mesmas versões dos providers em todo ambiente (local e CI).
 
