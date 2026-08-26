@@ -16,4 +16,12 @@ describe('cpf', () => {
   it('rejeita tamanho errado', () => {
     expect(isValidCpf('123')).toBe(false);
   });
+
+  it('rejeita CPF com dígitos verificadores errados', () => {
+    expect(isValidCpf('529.982.247-26')).toBe(false);
+  });
+
+  it('aceita outro CPF válido', () => {
+    expect(isValidCpf('111.444.777-35')).toBe(true);
+  });
 });

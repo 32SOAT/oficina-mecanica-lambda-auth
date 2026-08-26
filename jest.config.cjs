@@ -7,6 +7,6 @@ module.exports = {
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: { types: ['node', 'jest'] } }],
   },
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/integration/**'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts'],
   coverageDirectory: 'coverage',
 };

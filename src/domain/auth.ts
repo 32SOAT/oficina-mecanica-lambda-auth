@@ -1,6 +1,6 @@
 export type AuthRole = 'cliente';
 
-export type ClienteRecord = {
+export type Cliente = {
   id: string;
   documento: string;
   deletedAt: Date | null;

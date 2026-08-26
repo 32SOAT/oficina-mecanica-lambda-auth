@@ -1,9 +1,9 @@
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/test/integration'],
   testMatch: ['**/*.integration.spec.ts'],
-  setupFiles: ['<rootDir>/src/integration/setup.ts'],
+  setupFiles: ['<rootDir>/test/integration/setup.ts'],
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: { types: ['node', 'jest'] } }],
   },

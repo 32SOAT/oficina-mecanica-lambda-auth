@@ -1,13 +1,29 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
-import { authenticateCpf } from './application/authenticate-cpf';
-import { findClienteByCpf } from './infrastructure/db';
-import { signToken } from './infrastructure/jwt';
+import {
+  authenticateCpf,
+  type AuthFailureReason,
+} from './application/authenticate-cpf';
+import { postgresClienteRepository } from './infrastructure/db';
+import { jwtTokenSigner } from './infrastructure/jwt';
 import { logStructured } from './infrastructure/logger';
+
 
 const corsHeaders = {
   'content-type': 'application/json',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'content-type,authorization',
+};
+
+const httpByReason: Record<
+  AuthFailureReason,
+  { statusCode: 400 | 401; message: string }
+> = {
+  CpfObrigatorio: { statusCode: 400, message: 'CPF é obrigatório.' },
+  CpfInvalido: { statusCode: 400, message: 'CPF inválido.' },
+  ClienteInativo: {
+    statusCode: 401,
+    message: 'Cliente não encontrado ou inativo.',
+  },
 };
 
 function json(statusCode: number, body: unknown): APIGatewayProxyStructuredResultV2 {
@@ -53,13 +69,14 @@ export async function handler(
 
   try {
     const result = await authenticateCpf(cpf, {
-      findClienteByCpf,
-      signToken,
+      clienteRepository: postgresClienteRepository,
+      tokenSigner: jwtTokenSigner,
     });
 
     if (!result.ok) {
-      logStructured('auth_cpf', { status: result.statusCode, requestId });
-      return json(result.statusCode, { message: result.message });
+      const { statusCode, message } = httpByReason[result.reason];
+      logStructured('auth_cpf', { status: statusCode, reason: result.reason, requestId });
+      return json(statusCode, { message });
     }
 
     logStructured('auth_cpf', { status: 200, requestId });

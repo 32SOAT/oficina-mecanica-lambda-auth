@@ -1,5 +1,6 @@
+import type { ClienteRepository } from '../application/ports/cliente-repository';
+import type { Cliente } from '../domain/auth';
 import { Pool } from 'pg';
-import type { ClienteRecord } from '../domain/auth';
 
 let pool: Pool | undefined;
 
@@ -22,7 +23,7 @@ function getPool(): Pool {
   return pool;
 }
 
-export async function findClienteByCpf(cpf: string): Promise<ClienteRecord | null> {
+async function findByCpf(cpf: string): Promise<Cliente | null> {
   const result = await getPool().query<{
     id: string;
     documento: string;
@@ -46,6 +47,10 @@ export async function findClienteByCpf(cpf: string): Promise<ClienteRecord | nul
     deletedAt: row.deleted_at,
   };
 }
+
+export const postgresClienteRepository: ClienteRepository = {
+  findByCpf,
+};
 
 export async function resetPoolForTests(): Promise<void> {
   if (pool) {
