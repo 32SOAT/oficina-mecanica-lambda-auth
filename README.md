@@ -1,6 +1,6 @@
 # Autenticação do cliente via CPF (Lambda + API Gateway)
 
-Function serverless da Fase 3: valida CPF, consulta o cliente no Postgres e devolve um JWT. **Login de admin (e-mail/senha) continua na API Nest.**
+Function serverless: valida CPF, consulta o cliente no Postgres e devolve um JWT. **Login de admin (e-mail/senha) continua na API Nest.**
 
 API Nest (roles, rotas, JWT): [oficina-mecanica-api](https://github.com/32SOAT/oficina-mecanica-api) — em especial [docs/architecture/auth.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/architecture/auth.md).
 
@@ -30,6 +30,8 @@ sequenceDiagram
   Nest-->>C: status da OS
 ```
 
+
+
 JWT (`role: cliente`):
 
 ```json
@@ -38,11 +40,13 @@ JWT (`role: cliente`):
 
 Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (ativo). O Nest recusa JWT de cliente nas rotas de oficina (`RolesGuard`; default = admin) e aceita nas de status/aprovar/reprovar.
 
-| Rota no Gateway | Destino |
-| --- | --- |
-| `POST /auth/cpf` | Lambda |
+
+| Rota no Gateway                              | Destino                                |
+| -------------------------------------------- | -------------------------------------- |
+| `POST /auth/cpf`                             | Lambda                                 |
 | `ANY /{proxy+}` (ex.: `/api/v1/...`, `/api`) | Nest, se `nest_api_url` estiver setado |
-| `POST /api/v1/auth/login` | Nest (admin) |
+| `POST /api/v1/auth/login`                    | Nest (admin)                           |
+
 
 ## Contrato HTTP
 
@@ -139,7 +143,7 @@ Cole o hostname do NLB em `nest_api_url` (HTTP, **sem** barra no final):
 nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
 ```
 
-7. `terraform init && terraform apply`
+1. `terraform init && terraform apply`
 
 > O arquivo `infra/.terraform.lock.hcl` fica versionado no Git para garantir as mesmas versões dos providers em todo ambiente (local e CI).
 
