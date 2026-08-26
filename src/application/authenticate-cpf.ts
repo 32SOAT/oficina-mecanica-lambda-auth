@@ -1,5 +1,8 @@
-import type { AuthTokenPayload, ClienteRecord } from '../domain/auth';
+import type { ClienteRepository } from './ports/cliente-repository';
+import type { TokenSigner } from './ports/token-signer';
 import { isValidCpf, normalizeCpf } from '../domain/cpf';
+
+export type AuthFailureReason = 'CpfObrigatorio' | 'CpfInvalido' | 'ClienteInativo';
 
 export type AuthSuccess = {
   ok: true;
@@ -8,15 +11,14 @@ export type AuthSuccess = {
 
 export type AuthFailure = {
   ok: false;
-  statusCode: 400 | 401;
-  message: string;
+  reason: AuthFailureReason;
 };
 
 export type AuthResult = AuthSuccess | AuthFailure;
 
 export type AuthenticateCpfDeps = {
-  findClienteByCpf: (cpf: string) => Promise<ClienteRecord | null>;
-  signToken: (payload: AuthTokenPayload) => string;
+  clienteRepository: ClienteRepository;
+  tokenSigner: TokenSigner;
 };
 
 export async function authenticateCpf(
@@ -24,26 +26,22 @@ export async function authenticateCpf(
   deps: AuthenticateCpfDeps,
 ): Promise<AuthResult> {
   if (typeof rawCpf !== 'string' || rawCpf.trim() === '') {
-    return { ok: false, statusCode: 400, message: 'CPF é obrigatório.' };
+    return { ok: false, reason: 'CpfObrigatorio' };
   }
 
   const cpf = normalizeCpf(rawCpf);
 
   if (!isValidCpf(cpf)) {
-    return { ok: false, statusCode: 400, message: 'CPF inválido.' };
+    return { ok: false, reason: 'CpfInvalido' };
   }
 
-  const cliente = await deps.findClienteByCpf(cpf);
+  const cliente = await deps.clienteRepository.findByCpf(cpf);
 
   if (!cliente || cliente.deletedAt !== null) {
-    return {
-      ok: false,
-      statusCode: 401,
-      message: 'Cliente não encontrado ou inativo.',
-    };
+    return { ok: false, reason: 'ClienteInativo' };
   }
 
-  const token = deps.signToken({
+  const token = deps.tokenSigner.sign({
     sub: cliente.id,
     cpf: cliente.documento,
     role: 'cliente',

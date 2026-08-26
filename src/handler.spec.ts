@@ -4,10 +4,10 @@ import { authenticateCpf } from './application/authenticate-cpf';
 
 jest.mock('./application/authenticate-cpf');
 jest.mock('./infrastructure/db', () => ({
-  findClienteByCpf: jest.fn(),
+  postgresClienteRepository: { findByCpf: jest.fn() },
 }));
 jest.mock('./infrastructure/jwt', () => ({
-  signToken: jest.fn(),
+  jwtTokenSigner: { sign: jest.fn() },
 }));
 jest.mock('./infrastructure/logger', () => ({
   logStructured: jest.fn(),
@@ -68,16 +68,93 @@ describe('handler', () => {
     expect(JSON.parse(response.body ?? '')).toEqual({ token: 'abc' });
   });
 
-  it('propaga 401 da autenticação', async () => {
+  it('mapeia ClienteInativo para 401', async () => {
     mockedAuthenticate.mockResolvedValue({
       ok: false,
-      statusCode: 401,
-      message: 'Cliente não encontrado ou inativo.',
+      reason: 'ClienteInativo',
     });
 
     const response = await handler(postEvent({ cpf: '529.982.247-25' }));
 
     expect(response.statusCode).toBe(401);
+    expect(JSON.parse(response.body ?? '')).toEqual({
+      message: 'Cliente não encontrado ou inativo.',
+    });
+  });
+
+  it('mapeia CpfInvalido para 400', async () => {
+    mockedAuthenticate.mockResolvedValue({
+      ok: false,
+      reason: 'CpfInvalido',
+    });
+
+    const response = await handler(postEvent({ cpf: '111.111.111-11' }));
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body ?? '')).toEqual({
+      message: 'CPF inválido.',
+    });
+  });
+
+  it('responde 204 em OPTIONS', async () => {
+    const event = postEvent({});
+    event.requestContext.http.method = 'OPTIONS';
+
+    const response = await handler(event);
+
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe('');
+  });
+
+  it('aceita body vazio e propaga CpfObrigatorio', async () => {
+    mockedAuthenticate.mockResolvedValue({
+      ok: false,
+      reason: 'CpfObrigatorio',
+    });
+
+    const event = postEvent({});
+    event.body = undefined;
+
+    const response = await handler(event);
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body ?? '')).toEqual({
+      message: 'CPF é obrigatório.',
+    });
+  });
+
+  it('aceita JSON inválido como body vazio', async () => {
+    mockedAuthenticate.mockResolvedValue({
+      ok: false,
+      reason: 'CpfObrigatorio',
+    });
+
+    const event = postEvent({});
+    event.body = '{nao-json';
+
+    const response = await handler(event);
+
+    expect(mockedAuthenticate).toHaveBeenCalledWith(
+      undefined,
+      expect.anything(),
+    );
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('decodifica body base64', async () => {
+    mockedAuthenticate.mockResolvedValue({ ok: true, token: 'abc' });
+
+    const event = postEvent({ cpf: '529.982.247-25' });
+    event.isBase64Encoded = true;
+    event.body = Buffer.from(JSON.stringify({ cpf: '529.982.247-25' })).toString('base64');
+
+    const response = await handler(event);
+
+    expect(mockedAuthenticate).toHaveBeenCalledWith(
+      '529.982.247-25',
+      expect.anything(),
+    );
+    expect(response.statusCode).toBe(200);
   });
 
   it('devolve 503 quando autenticação lança erro', async () => {
@@ -89,5 +166,13 @@ describe('handler', () => {
     expect(JSON.parse(response.body ?? '')).toEqual({
       message: 'Serviço temporariamente indisponível.',
     });
+  });
+
+  it('devolve 503 para erro sem mensagem', async () => {
+    mockedAuthenticate.mockRejectedValue('falha');
+
+    const response = await handler(postEvent({ cpf: '529.982.247-25' }));
+
+    expect(response.statusCode).toBe(503);
   });
 });
