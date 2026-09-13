@@ -6,6 +6,11 @@ API Nest (roles, rotas, JWT): [oficina-mecanica-api](https://github.com/32SOAT/o
 
 O API Gateway HTTP e o proxy para o Nest pertencem exclusivamente ao repositório `oficina-mecanica-infra-k8s`.
 
+O guia de handoff entre os dois repositórios está em
+[docs/integration/infra-k8s.md](docs/integration/infra-k8s.md). Ele documenta a
+ordem de provisionamento, os parâmetros SSM, a configuração por ambiente e a
+validação do endpoint público.
+
 ## Tecnologias
 
 Node 22 · TypeScript · `jsonwebtoken` · `pg` · API Gateway HTTP API · Terraform · GitHub Actions
@@ -173,3 +178,6 @@ Invoke-RestMethod -Uri "$ENDPOINT/api/v1/ordens/UUID-DA-OS/status" `
 ```
 
 Se o health do Nest funciona no NLB direto mas **timeout** no Gateway, o NLB provavelmente está restrito por CIDR. O NLB público e o trecho HTTP entre Gateway e NLB são riscos conhecidos da arquitetura atual.
+
+Para o procedimento completo de integração, incluindo rollback, contratos e
+troubleshooting, consulte [docs/integration/infra-k8s.md](docs/integration/infra-k8s.md).
