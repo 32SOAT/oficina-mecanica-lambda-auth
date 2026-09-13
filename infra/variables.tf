@@ -4,6 +4,17 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "environment" {
+  type        = string
+  description = "Ambiente cujo contrato SSM sera publicado."
+  default     = "homologacao"
+
+  validation {
+    condition     = contains(["homologacao", "producao"], var.environment)
+    error_message = "environment deve ser homologacao ou producao."
+  }
+}
+
 variable "function_name" {
   type    = string
   default = "oficina-mecanica-auth-cpf"
@@ -62,15 +73,4 @@ variable "subnet_ids" {
 variable "security_group_ids" {
   type    = list(string)
   default = []
-}
-
-variable "nest_api_url" {
-  type        = string
-  description = "URL publica do Nest (NLB), ex: http://xxxx.elb.us-east-1.amazonaws.com. Vazio = so POST /auth/cpf."
-  default     = ""
-
-  validation {
-    condition     = var.nest_api_url == "" || can(regex("^https?://", var.nest_api_url))
-    error_message = "nest_api_url deve comecar com http:// ou https:// (hostname do NLB, sem barra no final)."
-  }
 }
