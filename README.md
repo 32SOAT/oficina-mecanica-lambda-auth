@@ -1,10 +1,15 @@
-# Autenticação do cliente via CPF (Lambda + API Gateway)
+# Autenticação do cliente via CPF (Lambda)
 
 Function serverless: valida CPF, consulta o cliente no Postgres e devolve um JWT. **Login de admin (e-mail/senha) continua na API Nest.**
 
 API Nest (roles, rotas, JWT): [oficina-mecanica-api](https://github.com/32SOAT/oficina-mecanica-api) — em especial [docs/architecture/auth.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/architecture/auth.md).
 
-O mesmo API Gateway também faz **proxy HTTP** das rotas `/api/...` para o Nest (NLB do EKS), quando `nest_api_url` está preenchido.
+O API Gateway HTTP e o proxy para o Nest pertencem exclusivamente ao repositório `oficina-mecanica-infra-k8s`.
+
+O guia de handoff entre os dois repositórios está em
+[docs/integration/infra-k8s.md](docs/integration/infra-k8s.md). Ele documenta a
+ordem de provisionamento, os parâmetros SSM, a configuração por ambiente e a
+validação do endpoint público.
 
 ## Tecnologias
 
@@ -42,7 +47,7 @@ Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (a
 | Rota no Gateway                              | Destino                                |
 | -------------------------------------------- | -------------------------------------- |
 | `POST /auth/cpf`                             | Lambda                                 |
-| `ANY /{proxy+}` (ex.: `/api/v1/...`, `/api`) | Nest, se `nest_api_url` estiver setado |
+| `ANY /{proxy+}` (ex.: `/api/v1/...`, `/api`) | Nest, configurado pelo `infra-k8s` |
 | `POST /api/v1/auth/login`                    | Nest (admin)                           |
 
 
@@ -120,39 +125,28 @@ npm run test:integration
 
 O bundle fica em `dist/handler.js` (handler `handler.handler`).
 
-## Deploy (Terraform)
+## Deploy da Lambda (Terraform)
 
-Ordem no Academy: **EKS + RDS + Nest no ar primeiro**, depois esta Lambda. Sem o hostname do NLB o Gateway só autentica CPF. Passo a passo do lab: [academy-passo-a-passo.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/deployment/academy-passo-a-passo.md) (seção 6).
+Ordem no Academy: **EKS + RDS + Nest no ar primeiro**, depois esta Lambda. O API Gateway é aplicado separadamente pelo `oficina-mecanica-infra-k8s`.
 
 1. `npm run build`
 2. `cd infra && cp terraform.tfvars.example terraform.tfvars`
 3. Preencha host do RDS, senha, `jwt_secret` (**igual** ao da API).
 4. **AWS Academy:** `lambda_role_arn` = ARN do `LabRole`. Sem isso o `CreateRole` falha.
 5. Para a Lambda alcançar o RDS, informe `subnet_ids` (privadas) e `security_group_ids`.
-6. Com o Nest no ar:
-
-```powershell
-kubectl -n oficina-mecanica get svc
-```
-
-Cole o hostname do NLB em `nest_api_url` (HTTP, **sem** barra no final):
-
-```hcl
-nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
-```
-
+6. Defina `environment` como `homologacao` ou `producao`.
 7. `terraform init && terraform apply`
 
-> O arquivo `infra/.terraform.lock.hcl` fica versionado no Git para garantir as mesmas versões dos providers em todo ambiente (local e CI).
+> O arquivo `infra/.terraform.lock.hcl` fica versionado no Git para garantir as mesmas versões dos providers em todo ambiente (local e CI). O apply publica `/oficina/<ambiente>/platform/auth-lambda-arn` para o `infra-k8s`.
 
-A URL sai em `terraform output api_endpoint`. `nest_proxy_enabled` deve ser `true`.
+Depois que a Lambda estiver publicada e o deploy Kubernetes tiver atualizado o hostname do NLB, o `infra-k8s` pode aplicar o API Gateway.
 
 Teste:
 
 **Linux/macOS:**
 
 ```bash
-# CPF
+# CPF (ENDPOINT fornecido pelo output api_gateway_endpoint do infra-k8s)
 curl -s -X POST "$ENDPOINT/auth/cpf" \
   -H "content-type: application/json" \
   -d '{"cpf":"529.982.247-25"}'
@@ -183,6 +177,7 @@ Invoke-RestMethod -Uri "$ENDPOINT/api/v1/ordens/UUID-DA-OS/status" `
   -Headers @{ Authorization = "Bearer COLE_O_TOKEN" }
 ```
 
-Se o health do Nest funciona no NLB direto mas **timeout** no Gateway, o NLB provavelmente está restrito por CIDR. Em `infra/.env` da API, `TF_VAR_api_allowed_cidr_blocks` precisa permitir `0.0.0.0/0` para o Gateway alcançar.
+Se o health do Nest funciona no NLB direto mas **timeout** no Gateway, o NLB provavelmente está restrito por CIDR. O NLB público e o trecho HTTP entre Gateway e NLB são riscos conhecidos da arquitetura atual.
 
-Antes de `terraform destroy` da API (EKS/RDS), destrua **este** Terraform (Gateway + Lambda).
+Para o procedimento completo de integração, incluindo rollback, contratos e
+troubleshooting, consulte [docs/integration/infra-k8s.md](docs/integration/infra-k8s.md).

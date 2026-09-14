@@ -1,4 +1,5 @@
 aws_region  = "us-east-1"
+environment = "homologacao"
 # No AWS Academy, cole o ARN do LabRole. Em conta pessoal, deixe vazio.
 # lambda_role_arn = "arn:aws:iam::ACCOUNT:role/LabRole"
 
@@ -15,5 +16,4 @@ postgres_ssl      = "1"
 # subnet_ids         = ["subnet-aaa", "subnet-bbb"]
 # security_group_ids = ["sg-aaa"]
 
-# Hostname do NLB do Nest (kubectl get svc). Sem barra no final. HTTP, porta 80.
-# nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
+# O hostname do NLB e publicado pelo deploy Kubernetes do infra-k8s.
