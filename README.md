@@ -15,6 +15,29 @@ validação do endpoint público.
 
 Node 22 · TypeScript · `jsonwebtoken` · `pg` · API Gateway HTTP API · Terraform · GitHub Actions
 
+## Arquitetura deste repositório
+
+```mermaid
+flowchart LR
+  subgraph Repo["oficina-mecanica-lambda-auth"]
+    L["Lambda auth-cpf<br/>nodejs22.x · 256 MB · 10 s<br/>ZIP de dist/handler.js"]
+    Role["Role de execução<br/>(ou lambda_role_arn no Academy)"]
+    SSM["SSM /oficina/&lt;ambiente&gt;/platform/auth-lambda-arn"]
+  end
+  GW["API Gateway HTTP API<br/>(infra-k8s)"]
+  RDS[("RDS PostgreSQL<br/>tabela cliente (infra-db)")]
+  CW["CloudWatch Logs<br/>JSON com requestId"]
+
+  GW -->|"POST /auth/cpf · AWS_PROXY"| L
+  L -->|"SELECT id, documento, deleted_at"| RDS
+  L --> CW
+  L -.->|"terraform apply publica o ARN"| SSM
+  SSM -.->|"lido pelo Gateway"| GW
+  Role --- L
+```
+
+Terraform em `infra/`: function, role (ou `lambda_role_arn` no Academy), `vpc_config` opcional e o parâmetro SSM. O API Gateway é do `infra-k8s`. Documentação arquitetural completa (componentes, sequência de autenticação, RFC 003, ADR 003): [oficina-mecanica-api/docs](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/README.md).
+
 ## Fluxo
 
 ```mermaid
@@ -26,9 +49,9 @@ sequenceDiagram
   participant DB as RDS Postgres
 
   C->>GW: POST /auth/cpf { "cpf": "529.982.247-25" }
-  GW->>L: proxy
+  GW->>L: invoke (AWS_PROXY)
   L->>DB: SELECT cliente WHERE documento = cpf
-  L-->>C: 200 { "token": "<jwt>" }
+  L-->>C: 200 { "token": "JWT" }
 
   C->>GW: GET /api/v1/ordens/{id}/status Authorization Bearer
   GW->>Nest: HTTP proxy
