@@ -1,6 +1,6 @@
 # Autenticação do cliente via CPF (Lambda)
 
-Function serverless: valida CPF, consulta o cliente no Postgres e devolve um JWT. **Login de admin (e-mail/senha) continua na API Nest.**
+Function serverless: valida CPF, consulta o cliente na OS por HTTP e devolve um JWT. **Login de admin (e-mail/senha) continua na OS.**
 
 API Nest (roles, rotas, JWT): [oficina-mecanica-api](https://github.com/32SOAT/oficina-mecanica-api) — em especial [docs/architecture/auth.md](https://github.com/32SOAT/oficina-mecanica-api/blob/main/docs/architecture/auth.md).
 
@@ -13,7 +13,7 @@ validação do endpoint público.
 
 ## Tecnologias
 
-Node 22 · TypeScript · `jsonwebtoken` · `pg` · API Gateway HTTP API · Terraform · GitHub Actions
+Node 22 · TypeScript · `jsonwebtoken` · API Gateway HTTP API · Terraform · GitHub Actions
 
 ## Arquitetura deste repositório
 
@@ -45,17 +45,22 @@ sequenceDiagram
   participant C as Cliente
   participant GW as API Gateway
   participant L as Lambda
-  participant Nest as Nest no EKS
-  participant DB as RDS Postgres
+  participant OS as OS
 
   C->>GW: POST /auth/cpf { "cpf": "529.982.247-25" }
+<<<<<<< Updated upstream
   GW->>L: invoke (AWS_PROXY)
   L->>DB: SELECT cliente WHERE documento = cpf
   L-->>C: 200 { "token": "JWT" }
+=======
+  GW->>L: proxy
+  L->>OS: POST /api/v1/clientes/consulta-auth
+  L-->>C: 200 { "token": "<jwt>" }
+>>>>>>> Stashed changes
 
   C->>GW: GET /api/v1/ordens/{id}/status Authorization Bearer
-  GW->>Nest: HTTP proxy
-  Nest-->>C: status da OS
+  GW->>OS: HTTP proxy
+  OS-->>C: status da OS
 ```
 
 JWT (`role: cliente`):
@@ -64,7 +69,7 @@ JWT (`role: cliente`):
 { "sub": "<id-do-cliente>", "cpf": "52998224725", "role": "cliente" }
 ```
 
-Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (ativo). O Nest recusa JWT de cliente nas rotas de oficina (`RolesGuard`; default = admin) e aceita nas de status/aprovar/reprovar.
+Use o **mesmo `JWT_SECRET`** da OS e o **mesmo `SAGA_TOKEN`** na consulta do cliente. Cliente excluído (`deletedAt` preenchido) não autentica. A OS recusa JWT de cliente nas rotas de oficina (`RolesGuard`; default = admin) e aceita nas de status, aprovar e reprovar.
 
 
 | Rota no Gateway                              | Destino                                |
@@ -85,13 +90,15 @@ Use o **mesmo `JWT_SECRET`** da API. Status do cliente = `deleted_at IS NULL` (a
 - `200` `{ "token": "..." }`
 - `400` CPF ausente ou inválido
 - `401` cliente não encontrado ou inativo
-- `503` falha de infraestrutura (Postgres indisponível, erro ao emitir JWT)
+- `503` falha de infraestrutura (OS indisponível, erro ao emitir JWT)
+
+Essa rota não entra no Swagger do Nest. A coleção para importar no Postman está em [docs/auth-cpf.postman_collection.json](docs/auth-cpf.postman_collection.json). Troque a variável `gateway` pelo `terraform output api_endpoint`.
 
 ## Como rodar localmente
 
-### Opção 1 — Docker (Postgres + servidor HTTP)
+### Opção 1 — Docker (servidor HTTP)
 
-Sobe Postgres com um cliente de teste e expõe `POST /auth/cpf` na porta 3000:
+A OS precisa estar no ar em `http://localhost:3001`, com o mesmo `SAGA_TOKEN`. O container chama essa URL pelo host e expõe `POST /auth/cpf` na porta 3000:
 
 ```bash
 npm run docker:up
@@ -121,18 +128,18 @@ npm run docker:down
 
 Logs do serviço de auth: `npm run docker:logs`
 
-### Opção 2 — Node no host (Postgres via Docker)
+### Opção 2 — Node no host
 
-1. Suba só o banco: `docker compose up -d postgres` (Postgres na porta **5433** do host)
-2. Copie `.env.example` para `.env`
+1. Suba a OS em `http://localhost:3001`
+2. Copie `.env.example` para `.env` e use o mesmo `SAGA_TOKEN` da OS
 3. Inicie o servidor local: `npm run dev:local`
 4. Teste com um dos comandos da Opção 1 em `http://localhost:3000/auth/cpf`
 
-O cliente seed usa CPF `529.982.247-25` (`52998224725` no banco).
+O CPF precisa existir como cliente ativo na OS. O seed da OS usa `529.982.247-25`.
 
 ## Como rodar os testes
 
-**Unitários** (sem Postgres):
+**Unitários** (sem a OS):
 
 ```bash
 npm ci
@@ -140,7 +147,7 @@ npm test
 npm run build
 ```
 
-**Integração** (Postgres necessário — ex.: `docker compose up -d postgres`):
+**Integração** (sobe um falso da OS na própria suíte):
 
 ```bash
 npm run test:integration
@@ -154,10 +161,26 @@ Ordem no Academy: **EKS + RDS + Nest no ar primeiro**, depois esta Lambda. O API
 
 1. `npm run build`
 2. `cd infra && cp terraform.tfvars.example terraform.tfvars`
-3. Preencha host do RDS, senha, `jwt_secret` (**igual** ao da API).
+3. Preencha `os_base_url`, `saga_token` (**igual** ao da OS) e `jwt_secret` (**igual** ao da OS).
 4. **AWS Academy:** `lambda_role_arn` = ARN do `LabRole`. Sem isso o `CreateRole` falha.
+<<<<<<< Updated upstream
 5. Para a Lambda alcançar o RDS, informe `subnet_ids` (privadas) e `security_group_ids`.
 6. Defina `environment` como `homologacao` ou `producao`.
+=======
+5. A consulta do cliente é HTTP. Informe `subnet_ids` e `security_group_ids` só se a OS não for alcançável pela URL pública.
+6. Com o Nest no ar:
+
+```powershell
+kubectl -n oficina-mecanica get svc
+```
+
+Cole o hostname do NLB em `nest_api_url` (HTTP, **sem** barra no final):
+
+```hcl
+nest_api_url = "http://xxxx.elb.us-east-1.amazonaws.com"
+```
+
+>>>>>>> Stashed changes
 7. `terraform init && terraform apply`
 
 > O arquivo `infra/.terraform.lock.hcl` fica versionado no Git para garantir as mesmas versões dos providers em todo ambiente (local e CI). O apply publica `/oficina/<ambiente>/platform/auth-lambda-arn` para o `infra-k8s`.

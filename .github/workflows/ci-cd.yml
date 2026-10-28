@@ -29,29 +29,10 @@ jobs:
     name: Testes de integração
     runs-on: ubuntu-latest
     needs: test
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: oficina
-          POSTGRES_PASSWORD: 123456fiap
-          POSTGRES_DB: oficina_mecanica
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U oficina -d oficina_mecanica"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       JWT_SECRET: troque-este-jwt-secret-com-mais-de-16-caracteres
       JWT_EXPIRES_IN: 1h
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: oficina
-      POSTGRES_PASSWORD: 123456fiap
-      POSTGRES_DB: oficina_mecanica
-      POSTGRES_SSL: 0
+      SAGA_TOKEN: oficina-local
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,11 +40,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Seed Postgres
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          PGPASSWORD=123456fiap psql -h localhost -U oficina -d oficina_mecanica -f docker/init.sql
       - run: npm run test:integration
 
   terraform:

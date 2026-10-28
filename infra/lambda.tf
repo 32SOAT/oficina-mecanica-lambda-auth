@@ -16,15 +16,10 @@ resource "aws_lambda_function" "auth" {
 
   environment {
     variables = {
-      JWT_SECRET                       = var.jwt_secret
-      JWT_EXPIRES_IN                   = var.jwt_expires_in
-      POSTGRES_HOST                    = var.postgres_host
-      POSTGRES_PORT                    = tostring(var.postgres_port)
-      POSTGRES_USER                    = var.postgres_user
-      POSTGRES_PASSWORD                = var.postgres_password
-      POSTGRES_DB                      = var.postgres_db
-      POSTGRES_SSL                     = var.postgres_ssl
-      POSTGRES_SSL_REJECT_UNAUTHORIZED = "0"
+      JWT_SECRET     = var.jwt_secret
+      JWT_EXPIRES_IN = var.jwt_expires_in
+      OS_BASE_URL    = var.os_base_url
+      SAGA_TOKEN     = var.saga_token
     }
   }
 
