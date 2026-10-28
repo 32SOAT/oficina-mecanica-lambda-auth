@@ -3,7 +3,7 @@ import {
   authenticateCpf,
   type AuthFailureReason,
 } from './application/authenticate-cpf';
-import { postgresClienteRepository } from './infrastructure/db';
+import { osClienteRepository } from './infrastructure/os-cliente';
 import { jwtTokenSigner } from './infrastructure/jwt';
 import { logStructured } from './infrastructure/logger';
 
@@ -69,7 +69,7 @@ export async function handler(
 
   try {
     const result = await authenticateCpf(cpf, {
-      clienteRepository: postgresClienteRepository,
+      clienteRepository: osClienteRepository,
       tokenSigner: jwtTokenSigner,
     });
 

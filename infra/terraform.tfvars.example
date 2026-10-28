@@ -6,13 +6,12 @@ environment = "homologacao"
 jwt_secret     = "troque-este-jwt-secret-com-mais-de-16-caracteres"
 jwt_expires_in = "1h"
 
-postgres_host     = "COLE_O_HOST_DO_RDS"
-postgres_user     = "oficina"
-postgres_password = "troque-esta-senha"
-postgres_db       = "oficina_mecanica"
-postgres_ssl      = "1"
+# URL da OS, sem barra no final. Localmente http://localhost:3001.
+# Na nuvem, o hostname do NLB da OS.
+os_base_url = "http://xxxx.elb.us-east-1.amazonaws.com"
+saga_token  = "troque-este-token-igual-ao-da-os"
 
-# Subnets privadas do cluster (terraform output da API) para a Lambda alcançar o RDS.
+# A Lambda não entra na VPC só para consultar a OS por HTTP.
 # subnet_ids         = ["subnet-aaa", "subnet-bbb"]
 # security_group_ids = ["sg-aaa"]
 
