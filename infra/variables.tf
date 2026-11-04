@@ -36,37 +36,25 @@ variable "jwt_expires_in" {
   default = "1h"
 }
 
-variable "postgres_host" {
-  type = string
+variable "os_base_url" {
+  type        = string
+  description = "URL da OS, sem barra no final. A Lambda consulta POST /api/v1/clientes/consulta-auth."
+
+  validation {
+    condition     = can(regex("^https?://", var.os_base_url))
+    error_message = "os_base_url deve comecar com http:// ou https://."
+  }
 }
 
-variable "postgres_port" {
-  type    = number
-  default = 5432
-}
-
-variable "postgres_user" {
-  type = string
-}
-
-variable "postgres_password" {
-  type      = string
-  sensitive = true
-}
-
-variable "postgres_db" {
-  type    = string
-  default = "oficina_mecanica"
-}
-
-variable "postgres_ssl" {
-  type    = string
-  default = "1"
+variable "saga_token" {
+  type        = string
+  description = "Mesmo SAGA_TOKEN configurado na OS."
+  sensitive   = true
 }
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Subnets privadas do RDS. Vazio = Lambda sem VPC (nao alcança o banco)."
+  description = "Subnets da Lambda. Vazio deixa a funcao fora da VPC, alcançando a OS pela URL publica."
   default     = []
 }
 

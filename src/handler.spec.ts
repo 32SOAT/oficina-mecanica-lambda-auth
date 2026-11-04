@@ -3,8 +3,8 @@ import { handler } from './handler';
 import { authenticateCpf } from './application/authenticate-cpf';
 
 jest.mock('./application/authenticate-cpf');
-jest.mock('./infrastructure/db', () => ({
-  postgresClienteRepository: { findByCpf: jest.fn() },
+jest.mock('./infrastructure/os-cliente', () => ({
+  osClienteRepository: { findByCpf: jest.fn() },
 }));
 jest.mock('./infrastructure/jwt', () => ({
   jwtTokenSigner: { sign: jest.fn() },

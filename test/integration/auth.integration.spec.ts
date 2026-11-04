@@ -1,10 +1,11 @@
+import http from 'node:http';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
+import type { AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
-import { Pool } from 'pg';
 import { handler } from '../../src/handler';
-import { resetPoolForTests } from '../../src/infrastructure/db';
 
 const validCpf = '529.982.247-25';
+const documento = '52998224725';
 
 function postEvent(body: unknown): APIGatewayProxyEventV2 {
   return {
@@ -36,41 +37,54 @@ function postEvent(body: unknown): APIGatewayProxyEventV2 {
   };
 }
 
-async function waitForPostgres(maxAttempts = 30): Promise<void> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const pool = new Pool({
-      host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT ?? '5432'),
-      user: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD,
-      database: process.env.POSTGRES_DB,
-      ssl: process.env.POSTGRES_SSL === '1' ? { rejectUnauthorized: false } : undefined,
+describe('auth integration', () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        if (req.headers['x-saga-token'] !== process.env.SAGA_TOKEN) {
+          res.statusCode = 401;
+          res.end();
+          return;
+        }
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          documento?: string;
+        };
+        if (body.documento !== documento) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ message: 'Cliente não encontrado.' }));
+          return;
+        }
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            data: {
+              id: '550e8400-e29b-41d4-a716-446655440000',
+              documento,
+              deletedAt: null,
+            },
+          }),
+        );
+      });
     });
 
-    try {
-      await pool.query('SELECT 1');
-      await pool.end();
-      return;
-    } catch {
-      await pool.end().catch(() => undefined);
-      if (attempt === maxAttempts) {
-        throw new Error('Postgres indisponível para testes de integração.');
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
-}
-
-describe('auth integration', () => {
-  beforeAll(async () => {
-    await waitForPostgres();
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+    const address = server.address() as AddressInfo;
+    process.env.OS_BASE_URL = `http://127.0.0.1:${address.port}`;
   });
 
   afterAll(async () => {
-    await resetPoolForTests();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 
-  it('autentica cliente seed e devolve JWT válido', async () => {
+  it('autentica cliente encontrado na OS e devolve JWT válido', async () => {
     const response = await handler(postEvent({ cpf: validCpf }));
 
     expect(response.statusCode).toBe(200);
@@ -86,7 +100,7 @@ describe('auth integration', () => {
 
     expect(payload).toMatchObject({
       sub: '550e8400-e29b-41d4-a716-446655440000',
-      cpf: '52998224725',
+      cpf: documento,
       role: 'cliente',
     });
   });

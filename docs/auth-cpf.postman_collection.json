@@ -1,0 +1,45 @@
+{
+  "info": {
+    "name": "Oficina mecanica — auth CPF (Lambda)",
+    "description": "Login do cliente via CPF. Nao aparece no Swagger do Nest porque a rota vive no API Gateway.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "gateway",
+      "value": "https://SEU_API_ID.execute-api.us-east-1.amazonaws.com"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "POST /auth/cpf",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "content-type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cpf\": \"529.982.247-25\"\n}"
+        },
+        "url": "{{gateway}}/auth/cpf",
+        "description": "Valida o CPF, consulta o cliente ativo no Postgres e devolve JWT com role cliente."
+      }
+    },
+    {
+      "name": "GET /api/v1/health",
+      "request": {
+        "method": "GET",
+        "url": "{{gateway}}/api/v1/health",
+        "description": "Proxy do Gateway para o Nest."
+      }
+    }
+  ]
+}
