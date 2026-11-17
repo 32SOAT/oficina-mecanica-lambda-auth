@@ -4,10 +4,7 @@ import { authenticateCpf } from './application/authenticate-cpf';
 
 jest.mock('./application/authenticate-cpf');
 jest.mock('./infrastructure/os-cliente', () => ({
-  osClienteRepository: { findByCpf: jest.fn() },
-}));
-jest.mock('./infrastructure/jwt', () => ({
-  jwtTokenSigner: { sign: jest.fn() },
+  osAuthClient: { login: jest.fn() },
 }));
 jest.mock('./infrastructure/logger', () => ({
   logStructured: jest.fn(),

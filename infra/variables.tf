@@ -27,18 +27,23 @@ variable "lambda_role_arn" {
 }
 
 variable "jwt_secret" {
-  type      = string
-  sensitive = true
+  type        = string
+  description = "Obsoleto. A OS assina o JWT. Mantido para tfvars antigos e nao e injetado na funcao."
+  sensitive   = true
+  default     = null
+  nullable    = true
 }
 
 variable "jwt_expires_in" {
-  type    = string
-  default = "1h"
+  type        = string
+  description = "Obsoleto. A OS define a validade do JWT. Nao e injetado na funcao."
+  default     = null
+  nullable    = true
 }
 
 variable "os_base_url" {
   type        = string
-  description = "URL da OS, sem barra no final. A Lambda consulta POST /api/v1/clientes/consulta-auth."
+  description = "URL da OS, sem barra no final. A Lambda chama POST /api/v1/auth/cpf."
 
   validation {
     condition     = can(regex("^https?://", var.os_base_url))
@@ -48,8 +53,10 @@ variable "os_base_url" {
 
 variable "saga_token" {
   type        = string
-  description = "Mesmo SAGA_TOKEN configurado na OS."
+  description = "Obsoleto. A autenticacao por CPF nao usa o token da saga. Nao e injetado na funcao."
   sensitive   = true
+  default     = null
+  nullable    = true
 }
 
 variable "subnet_ids" {

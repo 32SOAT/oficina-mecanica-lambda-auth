@@ -1,13 +1,12 @@
+import { OsAuthError } from './ports/os-auth';
 import type { AuthenticateCpfDeps } from './authenticate-cpf';
 import { authenticateCpf } from './authenticate-cpf';
 
 const validCpf = '529.982.247-25';
-const normalized = '52998224725';
 
 function deps(overrides: Partial<AuthenticateCpfDeps> = {}): AuthenticateCpfDeps {
   return {
-    clienteRepository: overrides.clienteRepository ?? { findByCpf: jest.fn() },
-    tokenSigner: overrides.tokenSigner ?? { sign: jest.fn() },
+    osAuth: overrides.osAuth ?? { login: jest.fn() },
   };
 }
 
@@ -28,8 +27,8 @@ describe('authenticateCpf', () => {
     const result = await authenticateCpf(
       validCpf,
       deps({
-        clienteRepository: {
-          findByCpf: jest.fn().mockResolvedValue(null),
+        osAuth: {
+          login: jest.fn().mockRejectedValue(new OsAuthError(401, 'http://os.test/api/v1/auth/cpf')),
         },
       }),
     );
@@ -37,44 +36,35 @@ describe('authenticateCpf', () => {
     expect(result).toEqual({ ok: false, reason: 'ClienteInativo' });
   });
 
-  it('recusa cliente inativo (deleted_at)', async () => {
+  it('repassa CPF inválido recusado pela OS', async () => {
     const result = await authenticateCpf(
       validCpf,
       deps({
-        clienteRepository: {
-          findByCpf: jest.fn().mockResolvedValue({
-            id: 'cliente-1',
-            documento: normalized,
-            deletedAt: new Date('2026-01-01'),
-          }),
+        osAuth: {
+          login: jest.fn().mockRejectedValue(new OsAuthError(400, 'http://os.test/api/v1/auth/cpf')),
         },
       }),
     );
 
-    expect(result).toEqual({ ok: false, reason: 'ClienteInativo' });
+    expect(result).toEqual({ ok: false, reason: 'CpfInvalido' });
   });
 
-  it('emite JWT para cliente ativo', async () => {
-    const sign = jest.fn().mockReturnValue('jwt-token');
-    const result = await authenticateCpf(
-      validCpf,
-      deps({
-        clienteRepository: {
-          findByCpf: jest.fn().mockResolvedValue({
-            id: 'cliente-1',
-            documento: normalized,
-            deletedAt: null,
-          }),
-        },
-        tokenSigner: { sign },
-      }),
-    );
+  it('devolve o token assinado pela OS', async () => {
+    const login = jest.fn().mockResolvedValue('jwt-assinado-pela-os');
+    const result = await authenticateCpf(validCpf, deps({ osAuth: { login } }));
 
-    expect(result).toEqual({ ok: true, token: 'jwt-token' });
-    expect(sign).toHaveBeenCalledWith({
-      sub: 'cliente-1',
-      cpf: normalized,
-      role: 'cliente',
-    });
+    expect(result).toEqual({ ok: true, token: 'jwt-assinado-pela-os' });
+    expect(login).toHaveBeenCalledWith('52998224725');
+  });
+
+  it('propaga falha que não é recusa de CPF', async () => {
+    await expect(
+      authenticateCpf(
+        validCpf,
+        deps({
+          osAuth: { login: jest.fn().mockRejectedValue(new Error('OS indisponível')) },
+        }),
+      ),
+    ).rejects.toThrow('OS indisponível');
   });
 });
