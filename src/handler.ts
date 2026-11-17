@@ -3,8 +3,7 @@ import {
   authenticateCpf,
   type AuthFailureReason,
 } from './application/authenticate-cpf';
-import { osClienteRepository } from './infrastructure/os-cliente';
-import { jwtTokenSigner } from './infrastructure/jwt';
+import { osAuthClient } from './infrastructure/os-cliente';
 import { logStructured } from './infrastructure/logger';
 
 
@@ -68,10 +67,7 @@ export async function handler(
   const { cpf } = parseBody(event);
 
   try {
-    const result = await authenticateCpf(cpf, {
-      clienteRepository: osClienteRepository,
-      tokenSigner: jwtTokenSigner,
-    });
+    const result = await authenticateCpf(cpf, { osAuth: osAuthClient });
 
     if (!result.ok) {
       const { statusCode, message } = httpByReason[result.reason];

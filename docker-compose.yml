@@ -6,7 +6,4 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
     environment:
-      JWT_SECRET: troque-este-jwt-secret-com-mais-de-16-caracteres
-      JWT_EXPIRES_IN: 1h
       OS_BASE_URL: http://host.docker.internal:3001
-      SAGA_TOKEN: oficina-local

@@ -1,99 +1,51 @@
 # Handoff da Lambda para o infra-k8s
 
-Este documento é o contrato operacional entre a Lambda de autenticação e o
-repositório `oficina-mecanica-infra-k8s`. A Lambda fornece código, bundle,
-configuração de execução e acesso ao RDS. O infra-k8s fornece API Gateway,
-Kubernetes, NLB e o deploy da API Nest.
+A Lambda valida o CPF, chama `POST /api/v1/auth/cpf` na OS e devolve o JWT assinado pela OS. O `oficina-mecanica-infra-k8s` publica o API Gateway. A OS e o billing publicam os hostnames dos balanceadores que o gateway consome.
 
-## Ownership e exclusões
+## Ownership
 
 | Responsabilidade | Repositório |
 | --- | --- |
-| Lambda, bundle, environment variables e role de execução | `lambda-auth` |
-| API Gateway HTTP, stage `$default`, rotas e permissão de invocação | `infra-k8s` |
-| Deployment/Service Nest e hostname do NLB | `infra-k8s` |
-| RDS, credenciais e backups | repositório de banco |
-| Imagem da API Nest | `oficina-mecanica-api` |
+| Lambda, bundle e `OS_BASE_URL` | `lambda-auth` |
+| API Gateway, rotas e permissão de invocação | `infra-k8s` |
+| Cliente, token e NLB da OS | `oficina-mecanica-os-service` |
+| Checkout, cobrança e NLB do billing | `oficina-mecanica-billing-service` |
 
-Não crie API Gateway, domínio, ACM, Route 53, WAF, VPC Link, NLB ou CloudWatch
-Logs neste repositório. Também não copie state ou secrets entre ambientes.
+Não crie API Gateway neste repositório. A função não recebe `JWT_SECRET` nem `SAGA_TOKEN`.
 
-## Configuração da Lambda
-
-1. Garanta que RDS, rede, security groups e a API Nest estejam provisionados.
-2. Copie `infra/terraform.tfvars.example` para um arquivo local não versionado.
-3. Defina `aws_region`, `environment` (`homologacao` ou `producao`), role de
-   execução, subnets privadas, security groups, host do RDS e configurações do
-   banco.
-4. Defina um `jwt_secret` forte, fora do Git, igual ao segredo usado pela API
-   Nest. Nunca registre esse valor em plan, log ou artifact.
-5. Execute testes e build e inicialize o root `infra` com o lockfile versionado.
-   O pipeline empacota `dist/handler.js` antes da validação Terraform.
-6. Gere um plan revisado e aplique somente pelo processo autorizado do ambiente.
-
-O apply cria/atualiza a Lambda e publica o contrato:
+## Contratos SSM
 
 ```text
-/oficina/homologacao/platform/auth-lambda-arn
-/oficina/producao/platform/auth-lambda-arn
+/oficina/<ambiente>/platform/auth-lambda-arn
+/oficina/<ambiente>/services/os-nlb-hostname
+/oficina/<ambiente>/services/billing-checkout-nlb-hostname
 ```
 
-O valor é consumido pelo data source SSM do root correspondente no infra-k8s.
-Confirme somente `Name`, `Type` e `Version`; não imprima secrets ou dados de
-configuração em logs compartilhados.
+`lambda-auth` publica o ARN. O deploy da OS publica `os-nlb-hostname`. O deploy do billing publica `billing-checkout-nlb-hostname`. O root do ambiente no infra-k8s lê os três. Não crie esses parâmetros à mão.
 
-## Sequência de integração
+## Sequência
 
-Para homologação:
+1. Suba o cluster e faça o deploy da OS, do billing e da execução.
+2. Aplique a Lambda com `environment` igual ao ambiente e `os_base_url` apontando para o NLB da OS.
+3. Confirme que os três parâmetros existem, sem imprimir valores.
+4. No infra-k8s, gere o plan do ambiente. Ele falha de propósito se algum dos três contratos ainda não existir.
+5. Aplique o gateway somente depois dessa revisão.
+6. Teste `POST /auth/cpf`, `GET /api/v1/health` e o checkout pelo endpoint do gateway.
 
-1. Aplique a Lambda com `environment=homologacao`.
-2. Faça o deploy Kubernetes da API Nest no mesmo ambiente.
-3. Aguarde o Service `LoadBalancer`, migration, rollout e health direto do NLB.
-   O deploy do infra-k8s publica
-   `/oficina/homologacao/platform/api-nlb-hostname`.
-4. Aguarde a consistência eventual do SSM.
-5. No infra-k8s, gere e revise o plan de `environments/homologacao`. O root
-   lerá os dois contratos; não informe os valores manualmente em `tfvars`.
-6. Aplique o saved plan pelo Environment protegido do infra-k8s.
-7. Use `api_gateway_endpoint` para testar:
-
-   ```bash
-   export ENDPOINT='https://<api-id>.execute-api.<region>.amazonaws.com'
-   curl -sS -X POST "$ENDPOINT/auth/cpf" \
-     -H 'content-type: application/json' \
-     -d '{"cpf":"529.982.247-25"}'
-   curl -sS "$ENDPOINT/api/v1/health"
-   ```
-
-Produção repete o fluxo com `producao`, branch `main` e aprovações próprias.
-Não promova parâmetro SSM manualmente: publique Lambda e Service pelos
-workflows dos respectivos ambientes.
-
-### Rollback
-
-Para reverter a aplicação, promova novamente uma versão conhecida do bundle da
-Lambda pelo fluxo autorizado e/ou restaure o digest anterior da API Nest por um
-novo PR no infra-k8s. Não altere o parâmetro SSM manualmente, não reconstrua uma
-imagem sem rastreabilidade e não use `latest`. Revalide os dois contratos e o
-endpoint depois da mudança.
+| Rota | Destino |
+| --- | --- |
+| `POST /auth/cpf` | Lambda |
+| `GET /api/v1/pagamentos/{osId}/checkout` e `POST .../cobrar` | NLB do billing |
+| `ANY /{proxy+}` | NLB da OS |
 
 ## Diagnóstico
 
-- **`auth-lambda-arn` ausente:** o apply da Lambda não terminou ou usou o
-  ambiente errado. Corrija a origem; não crie o parâmetro manualmente.
-- **`api-nlb-hostname` ausente:** o Service ainda não recebeu hostname ou o
-  deploy não conseguiu executar `ssm:PutParameter`. Verifique permissões e
-  repita o deploy após o LoadBalancer estar pronto.
-- **`POST /auth/cpf` falha:** teste Lambda e RDS separadamente, confirme rede e
-  JWT, sem revelar secrets.
-- **`/api/v1/health` falha no Gateway:** compare com o health direto do NLB;
-  timeout aponta para listener, target ou regra de rede.
+- **`auth-lambda-arn` ausente:** o apply da Lambda não terminou naquele ambiente.
+- **Hostname ausente:** o deploy da OS ou do billing ainda não publicou o Service. Repita o deploy. Não escreva o hostname no Terraform.
+- **`POST /auth/cpf` falha e o health da OS responde:** a Lambda não está alcançando `OS_BASE_URL`, ou o CPF não existe na OS.
+- **Checkout falha e o health da OS responde:** o gateway ainda não tem a rota do billing, ou o NLB do checkout não está publicado.
 
-O NLB é público e a integração API Gateway → NLB usa HTTP. Esses são riscos
-conhecidos desta versão e devem entrar na avaliação de segurança e no plano de
-evolução para integração privada com TLS.
-
-## Validação local e CI
+## Validação local
 
 ```bash
 npm ci
@@ -103,9 +55,6 @@ npm run test:integration
 terraform -chdir=infra fmt -check -recursive
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra validate
-bash tests/terraform-ownership.sh
 ```
 
-Para validação, use mocks, `init -backend=false` e os gates dos dois
-repositórios. Não execute `apply`, `destroy` ou deploy real como parte do teste
-local.
+Não execute `apply` como parte do teste local.

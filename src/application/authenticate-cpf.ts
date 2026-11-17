@@ -1,5 +1,4 @@
-import type { ClienteRepository } from './ports/cliente-repository';
-import type { TokenSigner } from './ports/token-signer';
+import { OsAuthError, type OsAuthClient } from './ports/os-auth';
 import { isValidCpf, normalizeCpf } from '../domain/cpf';
 
 export type AuthFailureReason = 'CpfObrigatorio' | 'CpfInvalido' | 'ClienteInativo';
@@ -17,8 +16,7 @@ export type AuthFailure = {
 export type AuthResult = AuthSuccess | AuthFailure;
 
 export type AuthenticateCpfDeps = {
-  clienteRepository: ClienteRepository;
-  tokenSigner: TokenSigner;
+  osAuth: OsAuthClient;
 };
 
 export async function authenticateCpf(
@@ -35,17 +33,16 @@ export async function authenticateCpf(
     return { ok: false, reason: 'CpfInvalido' };
   }
 
-  const cliente = await deps.clienteRepository.findByCpf(cpf);
-
-  if (!cliente || cliente.deletedAt !== null) {
-    return { ok: false, reason: 'ClienteInativo' };
+  try {
+    const token = await deps.osAuth.login(cpf);
+    return { ok: true, token };
+  } catch (error) {
+    if (error instanceof OsAuthError && error.status === 401) {
+      return { ok: false, reason: 'ClienteInativo' };
+    }
+    if (error instanceof OsAuthError && error.status === 400) {
+      return { ok: false, reason: 'CpfInvalido' };
+    }
+    throw error;
   }
-
-  const token = deps.tokenSigner.sign({
-    sub: cliente.id,
-    cpf: cliente.documento,
-    role: 'cliente',
-  });
-
-  return { ok: true, token };
 }

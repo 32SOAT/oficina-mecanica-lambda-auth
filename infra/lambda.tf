@@ -16,10 +16,7 @@ resource "aws_lambda_function" "auth" {
 
   environment {
     variables = {
-      JWT_SECRET     = var.jwt_secret
-      JWT_EXPIRES_IN = var.jwt_expires_in
-      OS_BASE_URL    = var.os_base_url
-      SAGA_TOKEN     = var.saga_token
+      OS_BASE_URL = var.os_base_url
     }
   }
 

@@ -1,3 +1,1 @@
-process.env.JWT_SECRET ??= 'troque-este-jwt-secret-com-mais-de-16-caracteres';
-process.env.JWT_EXPIRES_IN ??= '1h';
-process.env.SAGA_TOKEN ??= 'oficina-local';
+process.env.OS_BASE_URL ??= 'http://127.0.0.1:3001';

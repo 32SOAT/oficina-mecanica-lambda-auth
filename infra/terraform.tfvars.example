@@ -3,16 +3,11 @@ environment = "homologacao"
 # No AWS Academy, cole o ARN do LabRole. Em conta pessoal, deixe vazio.
 # lambda_role_arn = "arn:aws:iam::ACCOUNT:role/LabRole"
 
-jwt_secret     = "troque-este-jwt-secret-com-mais-de-16-caracteres"
-jwt_expires_in = "1h"
-
 # URL da OS, sem barra no final. Localmente http://localhost:3001.
-# Na nuvem, o hostname do NLB da OS.
+# Na nuvem, o hostname do NLB da OS publicado em
+# /oficina/<ambiente>/services/os-nlb-hostname.
 os_base_url = "http://xxxx.elb.us-east-1.amazonaws.com"
-saga_token  = "troque-este-token-igual-ao-da-os"
 
-# A Lambda não entra na VPC só para consultar a OS por HTTP.
+# A Lambda não entra na VPC só para chamar a OS por HTTP.
 # subnet_ids         = ["subnet-aaa", "subnet-bbb"]
 # security_group_ids = ["sg-aaa"]
-
-# O hostname do NLB e publicado pelo deploy Kubernetes do infra-k8s.
